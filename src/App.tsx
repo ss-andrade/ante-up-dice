@@ -1,24 +1,865 @@
-import{useEffect,useState}from'react';import{ANTES,CHARMS,CATEGORIES,bestCategory,buy,doRoll,evaluate,newRun,nextAnte,refresh,scoreHand,scoreTurn,type Category,type RunState}from'./engine';import{isActiveRun,parseSavedRun}from'./save';
-const SAVE='ante-up-dice.save.v1',HIGH='ante-up-dice.high';
-const PIPS=[[50,50],[27,27],[73,73],[27,73],[73,27],[27,50],[73,50]];
-function Die({value,held,onClick,index}:{value:number;held:boolean;onClick:()=>void;index:number}){const dots:Record<number,number[]>={1:[0],2:[1,2],3:[1,0,2],4:[1,4,3,2],5:[1,4,0,3,2],6:[1,5,4,3,6,2]};return <button className={'die '+(held?'held':'')} onClick={onClick} aria-label={`Die ${index+1}: ${value}, ${held?'held':'not held'}`} aria-pressed={held}>{(dots[value]??[]).map((p,i)=><i key={i} style={{left:`${PIPS[p]?.[0]}%`,top:`${PIPS[p]?.[1]}%`}}/>)}<span>{held?'HELD':'HOLD'}</span></button>}
-function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <div className="scrim" role="presentation" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button className="close" onClick={onClose} aria-label="Close">×</button><h2 id="modal-title">{title}</h2>{children}</section></div>}
-async function tone(enabled:boolean){if(!enabled)return;const AudioContext=window.AudioContext;if(typeof AudioContext!=='function')return;let context:AudioContext|null=null;let oscillator:OscillatorNode|null=null;let gain:GainNode|null=null;try{context=new AudioContext();if(context.state==='suspended')await context.resume();oscillator=context.createOscillator();gain=context.createGain();oscillator.frequency.value=220;gain.gain.setValueAtTime(.04,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.09);oscillator.connect(gain).connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.1);await new Promise<void>(resolve=>{if(oscillator)oscillator.onended=()=>resolve();else resolve()})}catch{/* Sound is optional; browser audio policy must never interrupt play. */}finally{try{oscillator?.disconnect()}catch{/* already disconnected */}try{gain?.disconnect()}catch{/* already disconnected */}if(context)try{await context.close()}catch{/* already closed or blocked */}}}
-function App(){const [run,setRun]=useState<RunState|null>(null);const [help,setHelp]=useState(false);const [sound,setSound]=useState(true);const [selected,setSelected]=useState<Category|null>(null);const [notice,setNotice]=useState('');
- const saved=run===null?parseSavedRun(localStorage.getItem(SAVE)):null;const savedRun=saved&&isActiveRun(saved)?saved:null;if(run===null&&!savedRun&&localStorage.getItem(SAVE)!==null)localStorage.removeItem(SAVE);
- useEffect(()=>{if(!run)return;if(isActiveRun(run))localStorage.setItem(SAVE,JSON.stringify(run));else localStorage.removeItem(SAVE)},[run]);
- const valid=run?.dice.length===5?evaluate(run.dice):[];const best=run?.dice.length===5?bestCategory(run.dice):null;const pick=selected&&valid.includes(selected)?selected:best;const preview=run&&pick?scoreHand(run.dice,pick,run.charms,run.cash,run.rolls):null;
- const act=(fn:(r:RunState)=>RunState)=>{if(run){void tone(sound);setRun(fn(run));setSelected(null)}};
- const high=Number(localStorage.getItem(HIGH)??0);useEffect(()=>{if(run&&run.score>high)localStorage.setItem(HIGH,String(run.score))},[run,high]);
- const startNew=()=>{if(savedRun&&!confirm('Start a new run? Your current run will be overwritten.'))return;setRun(newRun())};
- if(!run)return <main className="welcome"><div className="brandmark">⚄</div><p className="eyebrow">A tabletop roguelike</p><h1>ANTE UP<br/><em>DICE</em></h1><p>Build bold hands. Collect peculiar charms. Outscore eight rising tables.</p>{savedRun&&<button className="primary" onClick={()=>setRun(savedRun)}>Continue run</button>}<button className={savedRun?'':'primary'} onClick={startNew}>Start new run</button><button onClick={()=>setHelp(true)}>Rules & accessibility</button>{help&&<Help onClose={()=>setHelp(false)}/>}<small>Local high score · {high.toLocaleString()}</small></main>;
- if(run.status==='won'||run.status==='lost')return <main className="end"><p className="eyebrow">Run complete</p><h1>{run.status==='won'?'The table is yours':'The lights go dim'}</h1><p>{run.status==='won'?'You cleared every ante. A legendary night.':'The target held. Take what you learned to the next table.'}</p><div className="summary"><b>{run.score.toLocaleString()}</b><span>final table score</span><b>Ante {run.ante}</b><span>reached</span><b>{run.charms.length}</b><span>charms owned</span></div><button className="primary" onClick={()=>setRun(newRun())}>Deal a new run</button><button onClick={()=>setRun(null)}>Main menu</button></main>;
- if(run.status==='shop')return <main className="shop"><header><div><p className="eyebrow">Ante {run.ante} cleared</p><h1>The Backroom</h1></div><div className="money">${run.cash}</div></header><p>Choose lasting charms. You may carry five.</p><div className="wares">{run.shop.map(id=>{const c=CHARMS.find(x=>x.id===id)!;return <article className={`charm ${c.rarity.toLowerCase()}`} key={id}><span>{c.rarity}</span><div className="sigil">✦</div><h2>{c.name}</h2><p>{c.text}</p><button disabled={run.cash<c.cost||run.charms.length>=5} onClick={()=>act(r=>buy(r,id))}>Buy · ${c.cost}</button></article>})}</div><div className="shop-actions"><button disabled={run.cash<2+run.refreshes} onClick={()=>act(refresh)}>Refresh · ${2+run.refreshes}</button><button className="primary" onClick={()=>act(nextAnte)}>Enter ante {run.ante+1} →</button></div></main>;
- return <main className="table"><aside className="rail"><div className="plaque"><p className="eyebrow">Ante {run.ante} of {ANTES.length}</p><h2>Table target</h2><strong>{run.target.toLocaleString()}</strong><meter min="0" max={run.target} value={run.score}/><span>{run.score.toLocaleString()} banked</span></div><div className="stats"><span>Hands<b>{run.hands}</b></span><span>Rolls<b>{run.rolls}</b></span><span>Cash<b>${run.cash}</b></span><span>Best<b>{high}</b></span></div><button onClick={()=>setHelp(true)}>Rules / settings</button><button onClick={()=>setRun(null)}>Main menu</button></aside>
- <section className="board"><header className="top"><div><p className="eyebrow">Ante Up Dice</p><h1>Make your hand</h1></div><div className="slots" aria-label="Equipped charms">{run.charms.map(id=>{const c=CHARMS.find(x=>x.id===id)!;return <div className="mini" title={c.text} key={id}><i>✦</i><b>{c.name}</b><small>{c.text}</small></div>})}{[...Array(5-run.charms.length)].map((_,i)=><div className="empty" key={i}>◇</div>)}</div></header>
- <div className={'dice '+(notice?'scoring':'')}>{run.dice.length?run.dice.map((d,i)=><Die key={i} value={d} index={i} held={run.held[i]??false} onClick={()=>setRun({...run,held:run.held.map((h,j)=>j===i?!h:h)})}/>):<p className="ready">The dice are waiting.</p>}</div>
- <div className="tray" aria-label="Scoring categories">{(Object.keys(CATEGORIES) as Category[]).map(id=>{const c=CATEGORIES[id],ok=valid.includes(id);return <button key={id} className={pick===id?'active':''} disabled={run.dice.length>0&&!ok} onClick={()=>ok&&setSelected(id)}><b>{c.name}</b><small>{c.base} × {c.mult}</small></button>})}</div>
- <div className="scorebar"><div>{preview?<><span>{CATEGORIES[preview.category].name}</span><b>{preview.base} chips</b><i>×</i><b>{preview.mult} mult</b><i>=</i><strong>{preview.chips}</strong></>:<span>Roll to reveal a scoring hand</span>}</div>{run.dice.length===0||run.rolls>0?<button className="primary roll" onClick={()=>act(doRoll)}>{run.dice.length?'Reroll loose dice':'Roll dice'} <small>{run.rolls} left</small></button>:null}{run.dice.length===5&&<button className="primary score" onClick={()=>{if(preview){setNotice(`+${preview.chips}`);setTimeout(()=>setNotice(''),500)}act(r=>scoreTurn(r,pick??undefined))}}>Score hand <small>{preview?.chips??0} chips</small></button>}</div>{notice&&<div className="burst">{notice}</div>}</section>
- {help&&<Help onClose={()=>setHelp(false)} sound={sound} setSound={setSound}/>}</main>}
-function Help({onClose,sound,setSound}:{onClose:()=>void;sound?:boolean;setSound?:(x:boolean)=>void}){return <Modal title="How to play" onClose={onClose}><p>Clear each table target before your four scoring hands run out. Every hand gets three rolls. Click dice to hold them, reroll the rest, then choose any highlighted category and score.</p><h3>Scoring table</h3><div className="rules">{Object.entries(CATEGORIES).map(([id,c])=><div key={id}><b>{c.name}</b><span>{c.help}</span><strong>{c.base} × {c.mult}</strong></div>)}</div><p>Charms apply in their listed order and show deterministic bonuses. Buy them between antes; refreshes grow more expensive.</p>{setSound&&<label className="toggle"><input type="checkbox" checked={sound} onChange={e=>setSound(e.target.checked)}/> Generated sound cues</label>}<p><small>Keyboard: Tab to move, Enter or Space to activate. Held dice are announced and marked with both text and a gold frame.</small></p></Modal>}
-export default App;
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  CATEGORY_ORDER,
+  CATEGORIES,
+  CHARMS,
+  TABLES,
+  bestCategory,
+  buy,
+  doRoll,
+  enterTable,
+  evaluate,
+  newRun,
+  nextAnte,
+  refresh,
+  scoreHand,
+  scoreTurn,
+  sell,
+  skipShop,
+  toggleHold,
+  type Category,
+  type RunState,
+  type Score,
+} from "./engine";
+import { LEGACY_SAVE_KEY, SAVE_KEY, isActiveRun, loadSavedRun } from "./save";
+
+const HIGH_KEY = "ante-up-dice.high.v2";
+const SETTINGS_KEY = "ante-up-dice.settings";
+const PIPS = [
+  [50, 50],
+  [27, 27],
+  [73, 73],
+  [27, 73],
+  [73, 27],
+  [27, 50],
+  [73, 50],
+];
+type Settings = { sound: boolean; motion: boolean; onboarding: boolean };
+function readSettings(): Settings {
+  try {
+    return {
+      sound: false,
+      motion: true,
+      onboarding: true,
+      ...(JSON.parse(
+        localStorage.getItem(SETTINGS_KEY) ?? "{}",
+      ) as Partial<Settings>),
+    };
+  } catch {
+    return { sound: false, motion: true, onboarding: true };
+  }
+}
+function Die({
+  value,
+  held,
+  onClick,
+  index,
+  rolling,
+}: {
+  value: number;
+  held: boolean;
+  onClick: () => void;
+  index: number;
+  rolling: boolean;
+}) {
+  const dots: Record<number, number[]> = {
+    1: [0],
+    2: [1, 2],
+    3: [1, 0, 2],
+    4: [1, 4, 3, 2],
+    5: [1, 4, 0, 3, 2],
+    6: [1, 5, 4, 3, 6, 2],
+  };
+  return (
+    <button
+      className={`die ${held ? "held" : ""} ${rolling ? "rolling" : ""}`}
+      onClick={onClick}
+      aria-label={`Die ${index + 1}: ${value}, ${held ? "held" : "not held"}`}
+      aria-pressed={held}
+    >
+      {(dots[value] ?? []).map((p, i) => (
+        <i
+          aria-hidden="true"
+          key={i}
+          style={{ left: `${PIPS[p]?.[0]}%`, top: `${PIPS[p]?.[1]}%` }}
+        />
+      ))}
+      <span>{held ? "HELD" : "HOLD"}</span>
+    </button>
+  );
+}
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const dialog = useRef<HTMLElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
+  const closeDialog = useRef(onClose);
+  const titleId = useId();
+  useEffect(() => {
+    closeDialog.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const scrim = dialog.current?.parentElement;
+    const background = scrim
+      ? ([...scrim.parentElement!.children].filter(
+          (element) => element !== scrim,
+        ) as HTMLElement[])
+      : [];
+    background.forEach((element) => {
+      element.inert = true;
+    });
+    close.current?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeDialog.current();
+        return;
+      }
+      if (e.key !== "Tab" || !dialog.current) return;
+      const focusable = [
+        ...dialog.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ];
+      if (!focusable.length) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("keydown", key);
+      background.forEach((element) => {
+        element.inert = false;
+      });
+      if (opener?.isConnected) opener.focus();
+      else {
+        const heading = document.querySelector<HTMLElement>("main h1");
+        heading?.setAttribute("tabindex", "-1");
+        heading?.focus();
+      }
+    };
+  }, []);
+  return (
+    <div
+      className="scrim"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section
+        ref={dialog}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <button
+          ref={close}
+          className="close"
+          onClick={onClose}
+          aria-label="Close dialog"
+        >
+          ×
+        </button>
+        <h2 id={titleId}>{title}</h2>
+        {children}
+      </section>
+    </div>
+  );
+}
+async function tone(enabled: boolean, frequency = 240) {
+  if (!enabled || typeof window.AudioContext !== "function") return;
+  let context: AudioContext | null = null;
+  try {
+    context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.035, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.08);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.09);
+  } catch {
+    /* Optional audio is failure-safe. */
+  } finally {
+    if (context)
+      window.setTimeout(() => {
+        void context?.close().catch(() => undefined);
+      }, 150);
+  }
+}
+function Breakdown({ score }: { score: Score }) {
+  return (
+    <div className="breakdown">
+      <div>
+        <span>Category base</span>
+        <b>{score.categoryBase}</b>
+      </div>
+      <div>
+        <span>Dice total</span>
+        <b>+{score.diceContribution}</b>
+      </div>
+      <div
+        className={
+          score.tableStep.baseDelta || score.tableStep.multDelta
+            ? "triggered"
+            : ""
+        }
+      >
+        <span>
+          {score.tableStep.source}
+          <small>{score.tableStep.detail}</small>
+        </span>
+        <b>{delta(score.tableStep.baseDelta, score.tableStep.multDelta)}</b>
+      </div>
+      {score.charmSteps.map((step, i) => (
+        <div className="triggered" key={`${step.source}-${i}`}>
+          <span>
+            {i + 1}. {step.source}
+            <small>{step.detail}</small>
+          </span>
+          <b>{delta(step.baseDelta, step.multDelta)}</b>
+        </div>
+      ))}
+      <div className="final">
+        <span>Final</span>
+        <b>
+          {score.base} × {score.mult} = {score.chips}
+        </b>
+      </div>
+    </div>
+  );
+}
+function delta(base?: number, mult?: number) {
+  if (base) return `${base > 0 ? "+" : ""}${base} base`;
+  if (mult) return `${mult > 0 ? "+" : ""}${mult} mult`;
+  return "—";
+}
+function Help({
+  onClose,
+  settings,
+  setSettings,
+}: {
+  onClose: () => void;
+  settings: Settings;
+  setSettings: (s: Settings) => void;
+}) {
+  return (
+    <Modal title="Rules & accessibility" onClose={onClose}>
+      <p>
+        Clear each named table in four hands. Roll up to three times, hold any
+        dice, choose a highlighted category, and inspect the exact score before
+        committing.
+      </p>
+      <h3>Scoring categories</h3>
+      <div className="rules">
+        {CATEGORY_ORDER.map((id) => (
+          <div key={id}>
+            <b>{CATEGORIES[id].name}</b>
+            <span>{CATEGORIES[id].help}</span>
+            <strong>
+              {CATEGORIES[id].base} + dice × {CATEGORIES[id].mult}
+            </strong>
+          </div>
+        ))}
+      </div>
+      <h3>Settings</h3>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.sound}
+          onChange={(e) =>
+            setSettings({ ...settings, sound: e.target.checked })
+          }
+        />{" "}
+        Optional generated sound
+      </label>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.motion}
+          onChange={(e) =>
+            setSettings({ ...settings, motion: e.target.checked })
+          }
+        />{" "}
+        Motion effects (system reduced-motion still wins)
+      </label>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.onboarding}
+          onChange={(e) =>
+            setSettings({ ...settings, onboarding: e.target.checked })
+          }
+        />{" "}
+        Show onboarding on new runs
+      </label>
+      <p>
+        <small>
+          Keyboard: Tab moves through every control; Enter or Space activates
+          it; Escape closes this dialog. Status is always conveyed with words
+          and shape, not color alone.
+        </small>
+      </p>
+    </Modal>
+  );
+}
+function TableBriefing({
+  run,
+  onEnter,
+}: {
+  run: RunState;
+  onEnter: () => void;
+}) {
+  const table = TABLES[run.ante - 1]!;
+  return (
+    <main className="briefing">
+      <p className="eyebrow">
+        Table {run.ante} of {TABLES.length}
+      </p>
+      <h1>{table.name}</h1>
+      <p className="flavor">“{table.flavor}”</p>
+      <section className="rule-card">
+        <span>House rule</span>
+        <h2>{table.rule}</h2>
+        <div>
+          <b>{table.target}</b> target <i>·</i> <b>${table.reward}</b> clear
+          reward
+        </div>
+      </section>
+      <p>
+        You have four scoring hands and three rolls per hand. This rule applies
+        to every score at this table.
+      </p>
+      <button className="primary" onClick={onEnter}>
+        Take your seat
+      </button>
+    </main>
+  );
+}
+function Recap({
+  run,
+  onNew,
+  onMenu,
+}: {
+  run: RunState;
+  onNew: () => void;
+  onMenu: () => void;
+}) {
+  const best = run.stats.bestHand;
+  const used = CATEGORY_ORDER.filter((c) => run.stats.categoryUsage[c]);
+  return (
+    <main className={`end ${run.status}`}>
+      <p className="eyebrow">Run complete · seed {run.stats.seed}</p>
+      <h1>{run.status === "won" ? "The house applauds" : "The table holds"}</h1>
+      <p>
+        {run.status === "won"
+          ? "Eight distinct rooms, one finished run. Your build survived the Crown Vault."
+          : `You finished ${run.score.toLocaleString()} of ${run.target.toLocaleString()} required at ${TABLES[run.ante - 1]!.name}.`}
+      </p>
+      <section className="recap-grid">
+        <div>
+          <b>Table {run.stats.tableReached}/8</b>
+          <span>reached</span>
+        </div>
+        <div>
+          <b>{run.stats.totalScore.toLocaleString()}</b>
+          <span>total score</span>
+        </div>
+        <div>
+          <b>{run.stats.handsScored}</b>
+          <span>hands scored</span>
+        </div>
+        <div>
+          <b>{run.stats.rerolls}</b>
+          <span>rerolls used</span>
+        </div>
+        <div>
+          <b>
+            {best
+              ? `${CATEGORIES[best.category].name} · ${best.score}`
+              : "None"}
+          </b>
+          <span>best hand</span>
+        </div>
+        <div>
+          <b>{run.cash}</b>
+          <span>cash left</span>
+        </div>
+      </section>
+      <h2>Final build</h2>
+      <p>
+        {run.charms.length
+          ? run.charms
+              .map((id) => CHARMS.find((c) => c.id === id)?.name)
+              .join(" · ")
+          : "No charms carried"}
+      </p>
+      <h2>Category use</h2>
+      <p>
+        {used.length
+          ? used
+              .map((c) => `${CATEGORIES[c].name} ${run.stats.categoryUsage[c]}`)
+              .join(" · ")
+          : "No hands scored"}
+      </p>
+      <button className="primary" onClick={onNew}>
+        Deal new seed
+      </button>
+      <button onClick={onMenu}>Main menu</button>
+    </main>
+  );
+}
+
+export default function App() {
+  const [run, setRun] = useState<RunState | null>(null);
+  const [savedRun, setSavedRun] = useState<RunState | null>(() =>
+    loadSavedRun(localStorage),
+  );
+  const [help, setHelp] = useState(false);
+  const [settings, updateSettings] = useState(readSettings);
+  const [selected, setSelected] = useState<Category | null>(null);
+  const [notice, setNotice] = useState("");
+  const [purchaseNotice, setPurchaseNotice] = useState<{
+    ante: number;
+    text: string;
+  } | null>(null);
+  const purchaseStatus = useRef<HTMLParagraphElement>(null);
+  const [rolling, setRolling] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const screenKey = run ? `${run.status}-${run.ante}` : "menu";
+  useEffect(() => {
+    if (document.querySelector('[role="dialog"]')) return;
+    const heading = document.querySelector<HTMLElement>("main h1");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
+  }, [screenKey]);
+  useEffect(() => {
+    if (purchaseNotice) purchaseStatus.current?.focus();
+  }, [purchaseNotice]);
+  const setSettings = (next: Settings) => {
+    updateSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  };
+  useEffect(() => {
+    document.documentElement.dataset.motion = settings.motion ? "on" : "off";
+  }, [settings.motion]);
+  useEffect(() => {
+    if (!run) return;
+    if (isActiveRun(run)) localStorage.setItem(SAVE_KEY, JSON.stringify(run));
+    else {
+      localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem(LEGACY_SAVE_KEY);
+    }
+  }, [run]);
+  const valid = run?.dice.length === 5 ? evaluate(run.dice) : [];
+  const choice =
+    run?.dice.length === 5
+      ? selected && valid.includes(selected)
+        ? selected
+        : bestCategory(run.dice, run)
+      : null;
+  const preview =
+    run && choice
+      ? scoreHand(run.dice, choice, run.charms, run.cash, run.rolls, run)
+      : null;
+  const high = Number(localStorage.getItem(HIGH_KEY) ?? 0);
+  useEffect(() => {
+    if (run && run.stats.totalScore > high)
+      localStorage.setItem(HIGH_KEY, String(run.stats.totalScore));
+  }, [run, high]);
+  const act = (transition: (state: RunState) => RunState, sound = 260) => {
+    if (!run) return;
+    void tone(settings.sound, sound);
+    const next = transition(run);
+    if (!isActiveRun(next)) setSavedRun(null);
+    setRun(next);
+    setSelected(null);
+  };
+  const startNew = () => {
+    if (
+      savedRun &&
+      !window.confirm("Start a new run? Your current run will be overwritten.")
+    )
+      return;
+    const next = newRun();
+    setRun(next);
+    setShowOnboarding(settings.onboarding);
+  };
+  const roll = () => {
+    setRolling(true);
+    window.setTimeout(() => setRolling(false), settings.motion ? 220 : 0);
+    act(doRoll, 180);
+    setNotice("Dice settled");
+  };
+  const score = () => {
+    if (!preview) return;
+    setNotice(`${CATEGORIES[preview.category].name}: +${preview.chips}`);
+    act((s) => scoreTurn(s, choice ?? undefined), 420);
+  };
+  const purchase = (id: string) => {
+    if (!run) return;
+    const charm = CHARMS.find((candidate) => candidate.id === id);
+    if (!charm) return;
+    const before = run.cash;
+    act((state) => buy(state, id), 360);
+    setPurchaseNotice({
+      ante: run.ante,
+      text: `${charm.name} purchased. Cash changed from $${before} to $${before - charm.cost}.`,
+    });
+  };
+  const commerce = (transition: (state: RunState) => RunState) => {
+    setPurchaseNotice(null);
+    act(transition);
+  };
+  const goToMenu = () => {
+    if (run && isActiveRun(run)) setSavedRun(run);
+    else setSavedRun(null);
+    setRun(null);
+  };
+  const table = run ? TABLES[run.ante - 1]! : null;
+  const onboarding = useMemo(
+    () =>
+      showOnboarding ? (
+        <Modal title="Your first hand" onClose={() => setShowOnboarding(false)}>
+          <ol>
+            <li>Roll all five dice.</li>
+            <li>Hold promising values; reroll the loose dice up to twice.</li>
+            <li>Choose any ready category and open its score details.</li>
+            <li>
+              Score before four hands run out. Every table has a visible house
+              rule.
+            </li>
+          </ol>
+          <button className="primary" onClick={() => setShowOnboarding(false)}>
+            Got it
+          </button>
+          <button
+            onClick={() => {
+              setShowOnboarding(false);
+              setSettings({ ...settings, onboarding: false });
+            }}
+          >
+            Skip future onboarding
+          </button>
+        </Modal>
+      ) : null,
+    [showOnboarding, settings],
+  );
+
+  if (!run)
+    return (
+      <main className="welcome">
+        <div className="brandmark" aria-hidden="true">
+          ⚄
+        </div>
+        <p className="eyebrow">A tabletop roguelike</p>
+        <h1>
+          ANTE UP
+          <br />
+          <em>DICE</em>
+        </h1>
+        <p>
+          Read eight rooms. Shape a five-charm build. Make every score explain
+          itself.
+        </p>
+        {savedRun && (
+          <button className="primary" onClick={() => setRun(savedRun)}>
+            Continue · Table {savedRun.ante}
+          </button>
+        )}
+        <button className={savedRun ? "" : "primary"} onClick={startNew}>
+          Start new run
+        </button>
+        <button onClick={() => setHelp(true)}>Rules & accessibility</button>
+        <small>
+          Local best run · {high.toLocaleString()} · saves stay on this device
+        </small>
+        {help && (
+          <Help
+            onClose={() => setHelp(false)}
+            settings={settings}
+            setSettings={setSettings}
+          />
+        )}
+      </main>
+    );
+  if (run.status === "briefing")
+    return (
+      <>
+        <TableBriefing run={run} onEnter={() => act(enterTable, 320)} />
+        {onboarding}
+      </>
+    );
+  if (run.status === "won" || run.status === "lost")
+    return (
+      <Recap
+        run={run}
+        onNew={() => {
+          setSavedRun(null);
+          setRun(newRun());
+        }}
+        onMenu={() => {
+          setSavedRun(null);
+          setRun(null);
+        }}
+      />
+    );
+  if (run.status === "shop")
+    return (
+      <main className="shop">
+        <header>
+          <div>
+            <p className="eyebrow">{table?.name} cleared</p>
+            <h1>The Backroom</h1>
+          </div>
+          <div className="money" aria-label={`${run.cash} cash`}>
+            ${run.cash}
+          </div>
+        </header>
+        {purchaseNotice?.ante === run.ante && (
+          <p ref={purchaseStatus} className="purchase-status" role="status" tabIndex={-1}>
+            {purchaseNotice.text}
+          </p>
+        )}
+        {run.skippedShop ? (
+          <p role="status">
+            Offers forfeited. Your $3 skip bonus is banked; proceed to the
+            next-table briefing.
+          </p>
+        ) : (
+          <>
+            <p>
+              Inventory {run.charms.length}/5. Sell before buying to pivot;
+              every offer is unowned.
+            </p>
+            {run.charms.length > 0 && (
+              <section className="inventory" aria-label="Carried charms">
+                {run.charms.map((id) => {
+                  const charm = CHARMS.find((c) => c.id === id)!;
+                  return (
+                    <div key={id}>
+                      <b>{charm.name}</b>
+                      <small>{charm.text}</small>
+                      <button onClick={() => commerce((s) => sell(s, id))}>
+                        Sell · ${Math.max(2, Math.floor(charm.cost / 2))}
+                      </button>
+                    </div>
+                  );
+                })}
+              </section>
+            )}
+            <div className="wares">
+              {run.shop.map((id) => {
+                const charm = CHARMS.find((c) => c.id === id)!;
+                return (
+                  <article
+                    className={`charm ${charm.rarity.toLowerCase()}`}
+                    key={id}
+                  >
+                    <span>
+                      {charm.rarity} · {charm.timing}
+                    </span>
+                    <div className="sigil" aria-hidden="true">
+                      ✦
+                    </div>
+                    <h2>{charm.name}</h2>
+                    <p>{charm.text}</p>
+                    <button
+                      disabled={run.cash < charm.cost || run.charms.length >= 5}
+                      onClick={() => purchase(id)}
+                    >
+                      Buy {charm.name} · ${charm.cost}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="shop-actions">
+              <button
+                disabled={run.refreshes >= 2 || run.cash < 2 + run.refreshes}
+                onClick={() => commerce(refresh)}
+              >
+                Refresh ({run.refreshes}/2) · ${2 + run.refreshes}
+              </button>
+              <button onClick={() => commerce(skipShop)}>Skip offers · +$3</button>
+            </div>
+          </>
+        )}
+        <div className="shop-actions">
+          <button className="primary" onClick={() => commerce(nextAnte)}>
+            Briefing: Table {run.ante + 1}
+          </button>
+        </div>
+      </main>
+    );
+  return (
+    <main className="table">
+      <aside className="rail">
+        <div className="plaque">
+          <p className="eyebrow">
+            Table {run.ante} of {TABLES.length}
+          </p>
+          <h2>{table?.name}</h2>
+          <strong>{run.target.toLocaleString()}</strong>
+          <meter
+            min="0"
+            max={run.target}
+            value={run.score}
+            aria-label={`${run.score} of ${run.target} chips`}
+          />
+          <span>
+            {run.score.toLocaleString()} banked · {run.target - run.score}{" "}
+            needed
+          </span>
+        </div>
+        <div className="house-rule">
+          <b>House rule</b>
+          <span>{table?.rule}</span>
+        </div>
+        <div className="stats">
+          <span>
+            Hands<b>{run.hands}</b>
+          </span>
+          <span>
+            Rolls<b>{run.rolls}</b>
+          </span>
+          <span>
+            Cash<b>${run.cash}</b>
+          </span>
+          <span>
+            Total<b>{run.stats.totalScore}</b>
+          </span>
+        </div>
+        <button onClick={() => setHelp(true)}>Rules / settings</button>
+        <button onClick={goToMenu}>Main menu</button>
+      </aside>
+      <section className="board">
+        <header className="top">
+          <div>
+            <p className="eyebrow">Ante Up Dice</p>
+            <h1>{run.dice.length ? "Shape the hand" : "Make your hand"}</h1>
+          </div>
+          <div
+            className="slots"
+            aria-label={`${run.charms.length} of 5 charm slots filled`}
+          >
+            {run.charms.map((id) => {
+              const charm = CHARMS.find((c) => c.id === id)!;
+              return (
+                <div
+                  className="mini"
+                  title={`${charm.timing}: ${charm.text}`}
+                  key={id}
+                >
+                  <i aria-hidden="true">✦</i>
+                  <b>{charm.name}</b>
+                  <small>{charm.text}</small>
+                </div>
+              );
+            })}
+            {Array.from({ length: 5 - run.charms.length }, (_, i) => (
+              <div className="empty" aria-label="Empty charm slot" key={i}>
+                ◇
+              </div>
+            ))}
+          </div>
+        </header>
+        {notice && (
+          <div className="sr-live" aria-live="polite">
+            {notice}
+          </div>
+        )}
+        <div className="dice">
+          {run.dice.length ? (
+            run.dice.map((die, i) => (
+              <Die
+                key={i}
+                value={die}
+                index={i}
+                held={run.held[i] ?? false}
+                rolling={rolling}
+                onClick={() => {
+                  act((s) => toggleHold(s, i), 210);
+                  setNotice(
+                    `Die ${i + 1} ${run.held[i] ? "released" : "held"}`,
+                  );
+                }}
+              />
+            ))
+          ) : (
+            <p className="ready">The dice are waiting.</p>
+          )}
+        </div>
+        <div className="tray" aria-label="Scoring categories">
+          {CATEGORY_ORDER.map((id) => {
+            const category = CATEGORIES[id],
+              ready = valid.includes(id);
+            return (
+              <button
+                key={id}
+                className={choice === id ? "active" : ""}
+                disabled={!ready}
+                aria-pressed={choice === id}
+                onClick={() => setSelected(id)}
+              >
+                <b>{category.name}</b>
+                <small>{ready ? "READY" : category.help}</small>
+              </button>
+            );
+          })}
+        </div>
+        <div className="score-panel">
+          {preview ? (
+            <Breakdown score={preview} />
+          ) : (
+            <p>Roll to reveal scoring categories and a complete preview.</p>
+          )}
+          <div className="actions">
+            {(run.dice.length === 0 || run.rolls > 0) && (
+              <button className="primary roll" onClick={roll}>
+                {run.dice.length ? "Reroll loose dice" : "Roll dice"}{" "}
+                <small>{run.rolls} rolls available</small>
+              </button>
+            )}
+            {run.dice.length === 5 && (
+              <button className="primary score" onClick={score}>
+                Score {choice ? CATEGORIES[choice].name : "hand"}{" "}
+                <small>{preview?.chips ?? 0} chips</small>
+              </button>
+            )}
+          </div>
+        </div>
+        {run.lastScore && (
+          <details className="last-score">
+            <summary>Previous score · {run.lastScore.chips} chips</summary>
+            <Breakdown score={run.lastScore} />
+          </details>
+        )}
+      </section>
+      {help && (
+        <Help
+          onClose={() => setHelp(false)}
+          settings={settings}
+          setSettings={setSettings}
+        />
+      )}
+    </main>
+  );
+}
