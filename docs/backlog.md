@@ -1,22 +1,16 @@
 # Backlog and issue map
 
-The MVP was planned and executed through the repository's GitHub issue backlog:
+## MVP (#1–#7)
 
-- **#1 — MVP epic:** complete; full playable run, responsive PWA, persistence, testing, and deployment.
-- **#2 — Rules and content:** complete; documented scoring, eight-ante economy, twelve charms, UX states, and balancing assumptions.
-- **#3 — React/PWA scaffold:** complete; Vite, strict TypeScript, ESLint, Vitest, Playwright, manifest, service worker, CI, and Pages workflow.
-- **#4 — Deterministic engine:** complete; seeded PRNG, hold/reroll flow, nine hand categories, scoring pipeline, progression, and guarded transitions.
-- **#5 — Tactile responsive UI:** complete; desktop casino-table composition, portrait reflow, original dice/charm visuals, focus states, and motion handling.
-- **#6 — Shop, progression, and persistence:** complete; five-slot charm inventory, refresh economy, versioned save validation, continue/new-run flow, help, settings, and high scores.
-- **#7 — Release quality:** complete; engine/component/E2E tests, desktop/mobile visual QA, documentation, CI, security audit, and production deployment.
+The original static PWA, deterministic dice engine, poker categories, persistence, shop, responsive tabletop, and deployment foundation remain intact.
 
-All seven MVP issues were closed as completed after local verification and publication to `main`.
+## Complete game v1 (#8–#13)
 
-## Post-MVP candidates
+- **#8 complete-game epic:** complete locally; the full eight-table run, between-table flow, ending recaps, and v2 domain model are implemented.
+- **#9 encounter variety:** complete; eight named briefings apply deterministic, visible decision-changing rules.
+- **#10 buildcraft and run depth:** complete; 26 tiered charms support pair/kind, straight, economy/flexible play; buy, sell, skip-for-cash, limited refresh, five slots, stats, and recap are functional.
+- **#11 balance engineering:** complete; `npm run simulate` runs 1,000 real-engine seeds, and seeds 1/2 are deterministic full-run victory/defeat fixtures.
+- **#12 game feel and score clarity:** complete; structured breakdowns, roll/hold/score feedback, readiness text, table/shop/outcome presentation, optional safe audio, and reduced-motion controls are implemented.
+- **#13 onboarding and release QA:** complete; replayable rules, configurable onboarding, keyboard/live semantics, 390×844 reflow, schema-v1 migration, offline build, expanded unit/component/E2E coverage, and manual QA documentation are present.
 
-- Daily seeded tables and shareable run codes
-- Score and hand history
-- More charms, table constraints, and cosmetic table themes
-- Localization
-- Save migration fixtures for future schema versions
-- Expanded full-victory-path E2E coverage
+Possible post-v1 work: localization, shareable seed entry, cosmetic unlocks, and opt-in aggregate telemetry. None is represented as a shipped feature.
