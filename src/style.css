@@ -31,9 +31,20 @@ button {
   cursor: pointer;
   min-height: 44px;
 }
-button:hover:not(:disabled) {
-  border-color: #f0c56d;
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled) {
+    border-color: #f0c56d;
+    transform: translateY(-1px);
+  }
+}
+.navigation-action {
+  transition:
+    transform 140ms ease,
+    opacity 140ms ease;
+}
+.navigation-action:active:not(:disabled) {
+  opacity: 0.82;
+  transform: scale(0.96);
 }
 button:focus-visible,
 summary:focus-visible,
@@ -206,6 +217,23 @@ h1 {
 }
 .rail button:last-child {
   margin-top: auto;
+}
+.mobile-label {
+  display: none;
+}
+.screen-shell > .screen-navigation {
+  position: fixed;
+  z-index: 4;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  display: flex;
+  gap: 0.5rem;
+}
+.screen-shell > .shop {
+  padding-top: clamp(5rem, 8vw, 6rem);
+}
+.rail-navigation {
+  display: contents;
 }
 .board {
   padding: 1rem 1.4rem;
@@ -702,13 +730,28 @@ h1 {
 @media (max-width: 600px) {
   .rail {
     grid-template-columns: 1fr auto auto;
+    padding:
+      calc(0.5rem + env(safe-area-inset-top))
+      calc(0.5rem + env(safe-area-inset-right))
+      0.5rem
+      calc(0.5rem + env(safe-area-inset-left));
   }
   .rail .house-rule {
     grid-column: 1/-1;
     grid-row: 2;
   }
-  .rail > button:first-of-type {
+  .navigation-action {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 1rem;
+  }
+  .navigation-action .desktop-label {
     display: none;
+  }
+  .navigation-action .mobile-label {
+    display: inline;
   }
   .top {
     display: block;
@@ -754,30 +797,32 @@ h1 {
   }
   .shop {
     padding: 0.8rem;
+    min-width: 0;
+  }
+  .shop header {
+    flex-wrap: wrap;
+  }
+  .shop header > div,
+  .charm {
+    min-width: 0;
   }
   .shop h1 {
     font-size: 1.8rem;
+    overflow-wrap: anywhere;
   }
   .charm {
     min-height: 240px;
   }
   .briefing {
-    padding: 1rem;
+    padding: calc(4.75rem + env(safe-area-inset-top)) 1rem 1rem;
   }
   .rule-card {
     padding: 1rem;
   }
 }
 @media (max-width: 390px) {
-  .rail {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
   .rail .plaque {
     min-width: 0;
-  }
-  .rail > button:last-child {
-    max-width: 104px;
-    padding-inline: 0.45rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -788,12 +833,18 @@ h1 {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+  .navigation-action:active:not(:disabled) {
+    transform: none;
+  }
 }
 html[data-motion="off"] *,
 html[data-motion="off"] *::before,
 html[data-motion="off"] *::after {
   animation-duration: 0.01ms !important;
   transition: none !important;
+}
+html[data-motion="off"] .navigation-action:active:not(:disabled) {
+  transform: none;
 }
 .sr-live {
   position: absolute;

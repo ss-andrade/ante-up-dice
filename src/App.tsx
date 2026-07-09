@@ -320,6 +320,36 @@ function Help({
     </Modal>
   );
 }
+function ScreenNavigation({
+  onHelp,
+  onMenu,
+  className = "",
+}: {
+  onHelp: () => void;
+  onMenu: () => void;
+  className?: string;
+}) {
+  return (
+    <nav className={`screen-navigation ${className}`.trim()} aria-label="Screen navigation">
+      <button
+        className="navigation-action"
+        aria-label="Rules and settings"
+        onClick={onHelp}
+      >
+        <span className="desktop-label">Rules / settings</span>
+        <span className="mobile-label" aria-hidden="true">?</span>
+      </button>
+      <button
+        className="navigation-action"
+        aria-label="Main menu"
+        onClick={onMenu}
+      >
+        <span className="desktop-label">Main menu</span>
+        <span className="mobile-label" aria-hidden="true">☰</span>
+      </button>
+    </nav>
+  );
+}
 function TableBriefing({
   run,
   onEnter,
@@ -602,10 +632,21 @@ export default function App() {
     );
   if (run.status === "briefing")
     return (
-      <>
+      <div className="screen-shell">
+        <ScreenNavigation
+          onHelp={() => setHelp(true)}
+          onMenu={goToMenu}
+        />
         <TableBriefing run={run} onEnter={() => act(enterTable, 320)} />
         {onboarding}
-      </>
+        {help && (
+          <Help
+            onClose={() => setHelp(false)}
+            settings={settings}
+            setSettings={setSettings}
+          />
+        )}
+      </div>
     );
   if (run.status === "won" || run.status === "lost")
     return (
@@ -623,91 +664,104 @@ export default function App() {
     );
   if (run.status === "shop")
     return (
-      <main className="shop">
-        <header>
-          <div>
-            <p className="eyebrow">{table?.name} cleared</p>
-            <h1>The Backroom</h1>
-          </div>
-          <div className="money" aria-label={`${run.cash} cash`}>
-            ${run.cash}
-          </div>
-        </header>
-        {purchaseNotice?.ante === run.ante && (
-          <p ref={purchaseStatus} className="purchase-status" role="status" tabIndex={-1}>
-            {purchaseNotice.text}
-          </p>
-        )}
-        {run.skippedShop ? (
-          <p role="status">
-            Offers forfeited. Your $3 skip bonus is banked; proceed to the
-            next-table briefing.
-          </p>
-        ) : (
-          <>
-            <p>
-              Inventory {run.charms.length}/5. Sell before buying to pivot;
-              every offer is unowned.
+      <div className="screen-shell">
+        <ScreenNavigation
+          onHelp={() => setHelp(true)}
+          onMenu={goToMenu}
+        />
+        <main className="shop">
+          <header>
+            <div>
+              <p className="eyebrow">{table?.name} cleared</p>
+              <h1>The Backroom</h1>
+            </div>
+            <div className="money" aria-label={`${run.cash} cash`}>
+              ${run.cash}
+            </div>
+          </header>
+          {purchaseNotice?.ante === run.ante && (
+            <p ref={purchaseStatus} className="purchase-status" role="status" tabIndex={-1}>
+              {purchaseNotice.text}
             </p>
-            {run.charms.length > 0 && (
-              <section className="inventory" aria-label="Carried charms">
-                {run.charms.map((id) => {
+          )}
+          {run.skippedShop ? (
+            <p role="status">
+              Offers forfeited. Your $3 skip bonus is banked; proceed to the
+              next-table briefing.
+            </p>
+          ) : (
+            <>
+              <p>
+                Inventory {run.charms.length}/5. Sell before buying to pivot;
+                every offer is unowned.
+              </p>
+              {run.charms.length > 0 && (
+                <section className="inventory" aria-label="Carried charms">
+                  {run.charms.map((id) => {
+                    const charm = CHARMS.find((c) => c.id === id)!;
+                    return (
+                      <div key={id}>
+                        <b>{charm.name}</b>
+                        <small>{charm.text}</small>
+                        <button onClick={() => commerce((s) => sell(s, id))}>
+                          Sell · ${Math.max(2, Math.floor(charm.cost / 2))}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+              <div className="wares">
+                {run.shop.map((id) => {
                   const charm = CHARMS.find((c) => c.id === id)!;
                   return (
-                    <div key={id}>
-                      <b>{charm.name}</b>
-                      <small>{charm.text}</small>
-                      <button onClick={() => commerce((s) => sell(s, id))}>
-                        Sell · ${Math.max(2, Math.floor(charm.cost / 2))}
+                    <article
+                      className={`charm ${charm.rarity.toLowerCase()}`}
+                      key={id}
+                    >
+                      <span>
+                        {charm.rarity} · {charm.timing}
+                      </span>
+                      <div className="sigil" aria-hidden="true">
+                        ✦
+                      </div>
+                      <h2>{charm.name}</h2>
+                      <p>{charm.text}</p>
+                      <button
+                        disabled={run.cash < charm.cost || run.charms.length >= 5}
+                        onClick={() => purchase(id)}
+                      >
+                        Buy {charm.name} · ${charm.cost}
                       </button>
-                    </div>
+                    </article>
                   );
                 })}
-              </section>
-            )}
-            <div className="wares">
-              {run.shop.map((id) => {
-                const charm = CHARMS.find((c) => c.id === id)!;
-                return (
-                  <article
-                    className={`charm ${charm.rarity.toLowerCase()}`}
-                    key={id}
-                  >
-                    <span>
-                      {charm.rarity} · {charm.timing}
-                    </span>
-                    <div className="sigil" aria-hidden="true">
-                      ✦
-                    </div>
-                    <h2>{charm.name}</h2>
-                    <p>{charm.text}</p>
-                    <button
-                      disabled={run.cash < charm.cost || run.charms.length >= 5}
-                      onClick={() => purchase(id)}
-                    >
-                      Buy {charm.name} · ${charm.cost}
-                    </button>
-                  </article>
-                );
-              })}
-            </div>
-            <div className="shop-actions">
-              <button
-                disabled={run.refreshes >= 2 || run.cash < 2 + run.refreshes}
-                onClick={() => commerce(refresh)}
-              >
-                Refresh ({run.refreshes}/2) · ${2 + run.refreshes}
-              </button>
-              <button onClick={() => commerce(skipShop)}>Skip offers · +$3</button>
-            </div>
-          </>
+              </div>
+              <div className="shop-actions">
+                <button
+                  disabled={run.refreshes >= 2 || run.cash < 2 + run.refreshes}
+                  onClick={() => commerce(refresh)}
+                >
+                  Refresh ({run.refreshes}/2) · ${2 + run.refreshes}
+                </button>
+                <button onClick={() => commerce(skipShop)}>Skip offers · +$3</button>
+              </div>
+            </>
+          )}
+          <div className="shop-actions">
+            <button className="primary" onClick={() => commerce(nextAnte)}>
+              Briefing: Table {run.ante + 1}
+            </button>
+          </div>
+        </main>
+        {help && (
+          <Help
+            onClose={() => setHelp(false)}
+            settings={settings}
+            setSettings={setSettings}
+          />
         )}
-        <div className="shop-actions">
-          <button className="primary" onClick={() => commerce(nextAnte)}>
-            Briefing: Table {run.ante + 1}
-          </button>
-        </div>
-      </main>
+      </div>
     );
   return (
     <main className="table">
@@ -747,8 +801,11 @@ export default function App() {
             Total<b>{run.stats.totalScore}</b>
           </span>
         </div>
-        <button onClick={() => setHelp(true)}>Rules / settings</button>
-        <button onClick={goToMenu}>Main menu</button>
+        <ScreenNavigation
+          className="rail-navigation"
+          onHelp={() => setHelp(true)}
+          onMenu={goToMenu}
+        />
       </aside>
       <section className="board">
         <header className="top">

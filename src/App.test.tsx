@@ -138,7 +138,12 @@ it("hides and disables all commerce after skipping shop offers", () => {
   expect(
     screen.queryByRole("button", { name: /refresh/i }),
   ).not.toBeInTheDocument();
-  expect(screen.getAllByRole("button")).toHaveLength(1);
+  expect(
+    screen.getByRole("button", { name: /briefing: table 2/i }),
+  ).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: /skip offers/i }),
+  ).not.toBeInTheDocument();
 });
 it("offers continue and confirms before overwrite", () => {
   localStorage.setItem(SAVE_KEY, JSON.stringify(newRun(42)));
