@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const usage = {
   chance: 0,
@@ -51,6 +51,62 @@ async function loadState(page: Page, run: ReturnType<typeof state>) {
   );
   await page.reload();
   await page.getByRole("button", { name: /continue/i }).click();
+}
+const phoneViewports = [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+] as const;
+
+type Box = NonNullable<Awaited<ReturnType<Locator["boundingBox"]>>>;
+const intersects = (a: Box, b: Box) =>
+  a.x < b.x + b.width &&
+  a.x + a.width > b.x &&
+  a.y < b.y + b.height &&
+  a.y + a.height > b.y;
+
+async function expectEnlargedTextNavigation(
+  page: Page,
+  viewport: (typeof phoneViewports)[number],
+  content: Locator[],
+) {
+  await page.locator("html").evaluate((element) => {
+    element.style.fontSize = "150%";
+  });
+
+  const rules = page.getByRole("button", { name: /rules.*settings/i });
+  const menu = page.getByRole("button", { name: /main menu/i });
+  await expect(rules).toBeVisible();
+  await expect(menu).toBeVisible();
+  const [contentBoxes, rulesBox, menuBox] = await Promise.all([
+    Promise.all(content.map((locator) => locator.boundingBox())),
+    rules.boundingBox(),
+    menu.boundingBox(),
+  ]);
+  for (const box of [...contentBoxes, rulesBox, menuBox]) expect(box).not.toBeNull();
+  for (const box of [rulesBox!, menuBox!]) {
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+  }
+  expect(intersects(rulesBox!, menuBox!)).toBe(false);
+  for (const contentBox of contentBoxes) {
+    expect(intersects(rulesBox!, contentBox!)).toBe(false);
+    expect(intersects(menuBox!, contentBox!)).toBe(false);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    viewport.width,
+  );
+
+  await rules.click();
+  const dialog = page.getByRole("dialog", { name: /rules & accessibility/i });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(rules).toBeFocused();
 }
 test.beforeEach(async ({ page }) => {
   await page.goto("/ante-up-dice/");
@@ -105,7 +161,7 @@ test("briefs, rolls, holds, selects, and scores without timers", async ({
   const die = page.getByRole("button", { name: /die 1/i });
   await die.click();
   await expect(die).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: /open table/i }).click();
+  await page.getByRole("button", { name: /^open table ready$/i }).click();
   await expect(page.getByText("Category base")).toBeVisible();
   await page.getByRole("button", { name: /score open table/i }).click();
   await expect(page.getByText(/previous score/i)).toBeVisible();
@@ -224,14 +280,32 @@ test("keeps equipped charm effects readable at 390px", async ({ page }) => {
   await expect(page.getByText("+2 base per even die.")).toBeVisible();
 });
 
-test("keeps 320px header hit boxes inside the viewport and non-overlapping", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 700 });
-  await loadState(page, state());
-  const plaque = await page.locator(".rail .plaque").boundingBox();
-  const menu = await page.getByRole("button", { name: /main menu/i }).boundingBox();
-  expect(plaque).not.toBeNull();
-  expect(menu).not.toBeNull();
-  expect((plaque?.x ?? 0) + (plaque?.width ?? 0)).toBeLessThanOrEqual(menu?.x ?? 0);
-  expect((menu?.x ?? 0) + (menu?.width ?? 999)).toBeLessThanOrEqual(320);
-  expect(menu?.height ?? 0).toBeGreaterThanOrEqual(44);
+test.describe("enlarged-text phone navigation", () => {
+  test.skip(({ isMobile }) => !isMobile, "The mobile project faithfully models touch.");
+
+  for (const viewport of phoneViewports) {
+    for (const screen of ["briefing", "table", "shop"] as const) {
+      test(`${screen} at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+        await page.setViewportSize(viewport);
+        if (screen === "briefing") {
+          await loadState(page, state({ status: "briefing" }));
+        } else if (screen === "shop") {
+          await loadState(page, state({
+            status: "shop",
+            score: 155,
+            cash: 14,
+            shop: ["brass-tack", "double-stitch", "second-wind"],
+          }));
+        } else {
+          await loadState(page, state());
+        }
+        const content = screen === "briefing"
+          ? [page.locator(".briefing .eyebrow"), page.locator(".briefing h1")]
+          : screen === "shop"
+            ? [page.locator(".shop .eyebrow"), page.locator(".shop h1")]
+            : [page.locator(".rail .plaque")];
+        await expectEnlargedTextNavigation(page, viewport, content);
+      });
+    }
+  }
 });
