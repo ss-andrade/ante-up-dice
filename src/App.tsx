@@ -72,9 +72,9 @@ function Die({
   };
   return (
     <button
-      className={`die ${held ? "held" : ""} ${rolling ? "rolling" : ""}`}
+      className={`die ${held ? "held" : ""} ${rolling && !held ? "rolling" : ""}`}
       onClick={onClick}
-      aria-label={`Die ${index + 1}: ${value}, ${held ? "held" : "not held"}`}
+      aria-label={`Die ${index + 1}: ${value}, ${held ? "held; activate to release" : "not held; activate to hold"}`}
       aria-pressed={held}
     >
       {(dots[value] ?? []).map((p, i) => (
@@ -84,7 +84,7 @@ function Die({
           style={{ left: `${PIPS[p]?.[0]}%`, top: `${PIPS[p]?.[1]}%` }}
         />
       ))}
-      <span>{held ? "HELD" : "HOLD"}</span>
+      {held && <span>HELD</span>}
     </button>
   );
 }
@@ -320,37 +320,27 @@ function Help({
     </Modal>
   );
 }
-function ScreenNavigation({
-  onHelp,
-  onMenu,
+function PauseControl({
+  onOpen,
   className = "",
-  label = "Screen navigation",
 }: {
-  onHelp: () => void;
-  onMenu: () => void;
+  onOpen: () => void;
   className?: string;
-  label?: string;
 }) {
   return (
-    <nav className={`screen-navigation ${className}`.trim()} aria-label={label}>
-      <button
-        className="navigation-action"
-        aria-label="Rules and settings"
-        onClick={onHelp}
-      >
-        <span className="desktop-label">Rules / settings</span>
-        <span className="mobile-label" aria-hidden="true">?</span>
-      </button>
-      <button
-        className="navigation-action"
-        aria-label="Main menu"
-        onClick={onMenu}
-      >
-        <span className="desktop-label">Main menu</span>
-        <span className="mobile-label" aria-hidden="true">☰</span>
-      </button>
+    <nav className={`pause-control ${className}`.trim()} aria-label="Table controls">
+      <button className="pause-table" onClick={onOpen}>Pause table</button>
     </nav>
   );
+}
+
+function TableMenu({ onClose, onHelp, onMenu }: { onClose: () => void; onHelp: () => void; onMenu: () => void }) {
+  return <Modal title="Table menu" onClose={onClose}>
+    <div className="table-menu-actions">
+      <button onClick={onHelp}>Rules and settings</button>
+      <button onClick={onMenu}>Main menu</button>
+    </div>
+  </Modal>;
 }
 function TableBriefing({
   run,
@@ -361,7 +351,7 @@ function TableBriefing({
 }) {
   const table = TABLES[run.ante - 1]!;
   return (
-    <main className="briefing">
+    <section className="briefing">
       <p className="eyebrow">
         Table {run.ante} of {TABLES.length}
       </p>
@@ -382,7 +372,7 @@ function TableBriefing({
       <button className="primary" onClick={onEnter}>
         Take your seat
       </button>
-    </main>
+    </section>
   );
 }
 function Recap({
@@ -475,6 +465,16 @@ export default function App() {
   const purchaseStatus = useRef<HTMLParagraphElement>(null);
   const [rolling, setRolling] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [scorebook, setScorebook] = useState(false);
+  const [payoutSlip, setPayoutSlip] = useState(false);
+  const [tableMenu, setTableMenu] = useState(false);
+  const [inspectedCharm, setInspectedCharm] = useState<string | null>(null);
+  const [houseRuleOpen, setHouseRuleOpen] = useState(false);
+  const openTableHelp = () => {
+    document.querySelector<HTMLButtonElement>(".pause-table")?.focus();
+    setTableMenu(false);
+    setHelp(true);
+  };
   const screenKey = run ? `${run.status}-${run.ante}` : "menu";
   useEffect(() => {
     if (document.querySelector('[role="dialog"]')) return;
@@ -563,6 +563,7 @@ export default function App() {
   const goToMenu = () => {
     if (run && isActiveRun(run)) setSavedRun(run);
     else setSavedRun(null);
+    setTableMenu(false);
     setRun(null);
   };
   const table = run ? TABLES[run.ante - 1]! : null;
@@ -634,11 +635,8 @@ export default function App() {
     );
   if (run.status === "briefing")
     return (
-      <div className="screen-shell">
-        <ScreenNavigation
-          onHelp={() => setHelp(true)}
-          onMenu={goToMenu}
-        />
+      <main className="table-stage briefing-stage" aria-label="Table stage">
+        <PauseControl onOpen={() => setTableMenu(true)} />
         <TableBriefing run={run} onEnter={() => act(enterTable, 320)} />
         {onboarding}
         {help && (
@@ -648,7 +646,8 @@ export default function App() {
             setSettings={setSettings}
           />
         )}
-      </div>
+        {tableMenu && <TableMenu onClose={() => setTableMenu(false)} onHelp={openTableHelp} onMenu={goToMenu} />}
+      </main>
     );
   if (run.status === "won" || run.status === "lost")
     return (
@@ -666,12 +665,9 @@ export default function App() {
     );
   if (run.status === "shop")
     return (
-      <div className="screen-shell">
-        <ScreenNavigation
-          onHelp={() => setHelp(true)}
-          onMenu={goToMenu}
-        />
-        <main className="shop">
+      <main className="table-stage shop-stage" aria-label="Table stage">
+        <PauseControl onOpen={() => setTableMenu(true)} />
+        <section className="shop dealer-tray" role="region" aria-label="Dealer tray">
           <header>
             <div>
               <p className="eyebrow">{table?.name} cleared</p>
@@ -697,48 +693,43 @@ export default function App() {
                 Inventory {run.charms.length}/5. Sell before buying to pivot;
                 every offer is unowned.
               </p>
-              {run.charms.length > 0 && (
-                <section className="inventory" aria-label="Carried charms">
-                  {run.charms.map((id) => {
+              <section className="inventory" aria-label="Carried charms">
+                {run.charms.length > 0 ? (
+                  run.charms.map((id) => {
                     const charm = CHARMS.find((c) => c.id === id)!;
                     return (
-                      <div key={id}>
-                        <b>{charm.name}</b>
-                        <small>{charm.text}</small>
-                        <button onClick={() => commerce((s) => sell(s, id))}>
-                          Sell · ${Math.max(2, Math.floor(charm.cost / 2))}
-                        </button>
-                      </div>
+                      <button className="carried-charm" key={id} aria-label={`Sell ${charm.name} · $${Math.max(2, Math.floor(charm.cost / 2))}`} aria-describedby={`carried-${id}-effect`} onClick={() => commerce((s) => sell(s, id))}>
+                        <b>{charm.name}</b><small id={`carried-${id}-effect`}>{charm.text}</small><span>Sell · ${Math.max(2, Math.floor(charm.cost / 2))}</span>
+                      </button>
                     );
-                  })}
-                </section>
-              )}
-              <div className="wares">
+                  })
+                ) : <span className="empty-dock">No charms carried</span>}
+              </section>
+              <section className="wares" aria-label="Charm offers">
                 {run.shop.map((id) => {
                   const charm = CHARMS.find((c) => c.id === id)!;
                   return (
-                    <article
+                    <button
                       className={`charm ${charm.rarity.toLowerCase()}`}
                       key={id}
+                      aria-label={`Buy ${charm.name} · $${charm.cost}`}
+                      aria-describedby={`offer-${id}-meta offer-${id}-effect`}
+                      disabled={run.cash < charm.cost || run.charms.length >= 5}
+                      onClick={() => purchase(id)}
                     >
-                      <span>
+                      <span id={`offer-${id}-meta`}>
                         {charm.rarity} · {charm.timing}
                       </span>
                       <div className="sigil" aria-hidden="true">
                         ✦
                       </div>
                       <h2>{charm.name}</h2>
-                      <p>{charm.text}</p>
-                      <button
-                        disabled={run.cash < charm.cost || run.charms.length >= 5}
-                        onClick={() => purchase(id)}
-                      >
-                        Buy {charm.name} · ${charm.cost}
-                      </button>
-                    </article>
+                      <p id={`offer-${id}-effect`}>{charm.text}</p>
+                      <strong>Buy · ${charm.cost}</strong>
+                    </button>
                   );
                 })}
-              </div>
+              </section>
               <div className="shop-actions">
                 <button
                   disabled={run.refreshes >= 2 || run.cash < 2 + run.refreshes}
@@ -755,7 +746,7 @@ export default function App() {
               Briefing: Table {run.ante + 1}
             </button>
           </div>
-        </main>
+        </section>
         {help && (
           <Help
             onClose={() => setHelp(false)}
@@ -763,17 +754,18 @@ export default function App() {
             setSettings={setSettings}
           />
         )}
-      </div>
+        {tableMenu && <TableMenu onClose={() => setTableMenu(false)} onHelp={openTableHelp} onMenu={goToMenu} />}
+      </main>
     );
   return (
-    <main className="table">
-      <aside className="rail" role="region" aria-label="Table rail">
-        <div className="plaque">
+    <main className="table-stage play-stage" aria-label="Table stage">
+      <header className="edge-hud">
+        <div className="progress-counter">
           <p className="eyebrow">
             Table {run.ante} of {TABLES.length}
           </p>
-          <h2>{table?.name}</h2>
-          <strong>{run.target.toLocaleString()}</strong>
+          <span>{table?.name}</span>
+          <strong>{run.score.toLocaleString()} / {run.target.toLocaleString()}</strong>
           <meter
             min="0"
             max={run.target}
@@ -785,37 +777,27 @@ export default function App() {
             needed
           </span>
         </div>
-        <div className="house-rule">
-          <b>House rule</b>
-          <span>{table?.rule}</span>
+        <div className="hud-counters">
+          <span>Hands <b>{run.hands}</b></span>
+          <span>Rolls <b>{run.rolls}</b></span>
+          <span>Cash <b>${run.cash}</b></span>
         </div>
-        <div className="stats">
-          <span>
-            Hands<b>{run.hands}</b>
-          </span>
-          <span>
-            Rolls<b>{run.rolls}</b>
-          </span>
-          <span>
-            Cash<b>${run.cash}</b>
-          </span>
-          <span>
-            Total<b>{run.stats.totalScore}</b>
-          </span>
-        </div>
-        <ScreenNavigation
-          className="rail-navigation"
-          label="Table controls"
-          onHelp={() => setHelp(true)}
-          onMenu={goToMenu}
-        />
-      </aside>
-      <section className="board" aria-label="Casino tabletop">
+        <PauseControl className="hud-navigation" onOpen={() => setTableMenu(true)} />
+      </header>
+      <section className="board">
         <header className="top" role="region" aria-label="Charm rail">
           <div className="table-title">
             <p className="eyebrow">Ante Up Dice</p>
             <h1>{run.dice.length ? "Shape the hand" : "Make your hand"}</h1>
           </div>
+          <button
+            type="button"
+            className="house-rule-token"
+            aria-label={`House rule: ${table?.rule}. Activate to inspect`}
+            onClick={() => setHouseRuleOpen(true)}
+          >
+            House rule
+          </button>
           <div
             className="slots"
             aria-label={`${run.charms.length} of 5 charm slots filled`}
@@ -823,15 +805,16 @@ export default function App() {
             {run.charms.map((id) => {
               const charm = CHARMS.find((c) => c.id === id)!;
               return (
-                <div
+                <button
+                  type="button"
                   className="mini"
-                  title={`${charm.timing}: ${charm.text}`}
+                  aria-label={`Inspect ${charm.name}`}
+                  onClick={() => setInspectedCharm(id)}
                   key={id}
                 >
                   <i aria-hidden="true">✦</i>
                   <b>{charm.name}</b>
-                  <small>{charm.text}</small>
-                </div>
+                </button>
               );
             })}
             {Array.from({ length: 5 - run.charms.length }, (_, i) => (
@@ -846,9 +829,9 @@ export default function App() {
             {notice}
           </div>
         )}
-        <div className="dice throw-zone" role="region" aria-label="Throw zone">
+        <div className="dice-hand" role="region" aria-label="Dice hand">
           {run.dice.length ? (
-            run.dice.map((die, i) => !run.held[i] && (
+            run.dice.map((die, i) => (
               <Die
                 key={i}
                 value={die}
@@ -867,70 +850,43 @@ export default function App() {
             <p className="ready">The dice are waiting.</p>
           )}
         </div>
-        <div className="keep-tray" role="region" aria-label="Keep tray">
-          <span className="keep-label">Held dice</span>
-          <div className="kept-dice">
-            {run.dice.map((die, i) => run.held[i] && (
-              <Die
-                key={i}
-                value={die}
-                index={i}
-                held
-                rolling={rolling}
-                onClick={() => {
-                  act((s) => toggleHold(s, i), 210);
-                  setNotice(`Die ${i + 1} released`);
-                }}
-              />
-            ))}
-            {!run.held.some(Boolean) && <span className="keep-empty">Tap a die to hold it</span>}
-          </div>
-        </div>
-        <div className="tray" role="region" aria-label="Scoring rail">
-          {CATEGORY_ORDER.map((id) => {
-            const category = CATEGORIES[id],
-              ready = valid.includes(id);
+        <div className="score-zone">
+        <div className="score-offers" role="region" aria-label="Score offers">
+          {valid.map((id) => {
+            const category = CATEGORIES[id];
             return (
               <button
                 key={id}
                 className={choice === id ? "active" : ""}
-                disabled={!ready}
                 aria-pressed={choice === id}
                 onClick={() => setSelected(id)}
               >
                 <b>{category.name}</b>
-                <small>{ready ? "READY" : category.help}</small>
+                <small>READY</small>
               </button>
             );
           })}
         </div>
+        <button className="scorebook-control" onClick={() => setScorebook(true)}>Scorebook</button>
+        </div>
         <div className="score-panel">
-          <div className="pot" role="region" aria-label="Chip pot">
-            <span>Hand pot</span>
-            <strong>{preview?.chips ?? 0}</strong>
-            <small>chips</small>
+          <div className="pot-region" role="region" aria-label="Chip pot">
+            <button className="pot" aria-label={`Score details · hand pot ${preview?.chips ?? 0} chips`} onClick={() => setPayoutSlip(true)} disabled={!preview}>
+              <span>Pot</span><strong>{preview?.chips ?? 0}</strong><small>Details</small>
+            </button>
           </div>
-          <details className="receipt">
-            <summary>Score details</summary>
-            {preview ? (
-              <Breakdown score={preview} />
-            ) : (
-              <p>Roll to reveal scoring categories and a complete preview.</p>
-            )}
-          </details>
           <div className="actions" role="region" aria-label="Thumb action">
-            {(run.dice.length === 0 || run.rolls > 0) && (
-              <button className="primary roll" onClick={roll}>
-                {run.dice.length ? "Reroll loose dice" : "Roll dice"}{" "}
-                <small>{run.rolls} rolls available</small>
+            {run.dice.length === 0 ? (
+              <button className="primary roll" data-importance="primary" onClick={roll}>
+                Roll dice
               </button>
-            )}
-            {run.dice.length === 5 && (
-              <button className="primary score" onClick={score}>
-                Score {choice ? CATEGORIES[choice].name : "hand"}{" "}
-                <small>{preview?.chips ?? 0} chips</small>
+            ) : <>
+              {run.rolls > 0 && <button className="reroll" data-importance="secondary" onClick={roll}>Reroll</button>}
+              <span className="roll-counter">{run.rolls} left</span>
+              <button className="primary score" data-importance="primary" onClick={score}>
+                Score {choice ? CATEGORIES[choice].name : "hand"}
               </button>
-            )}
+            </>}
           </div>
         </div>
         {run.lastScore && (
@@ -940,6 +896,13 @@ export default function App() {
           </details>
         )}
       </section>
+      {scorebook && <Modal title="Scorebook" onClose={() => setScorebook(false)}><div className="rules scorebook-list">{CATEGORY_ORDER.map((id) => <div key={id}><b>{CATEGORIES[id].name}</b><span>{CATEGORIES[id].help}</span><strong>{CATEGORIES[id].base} + dice × {CATEGORIES[id].mult}</strong></div>)}</div></Modal>}
+      {payoutSlip && preview && <Modal title={`Payout slip · ${CATEGORIES[preview.category].name}`} onClose={() => setPayoutSlip(false)}><Breakdown score={preview} /></Modal>}
+      {inspectedCharm && (() => {
+        const charm = CHARMS.find((candidate) => candidate.id === inspectedCharm);
+        return charm ? <Modal title={charm.name} onClose={() => setInspectedCharm(null)}><p className="eyebrow">{charm.timing}</p><p>{charm.text}</p></Modal> : null;
+      })()}
+      {houseRuleOpen && table && <Modal title="House rule" onClose={() => setHouseRuleOpen(false)}><p>{table.rule}</p></Modal>}
       {help && (
         <Help
           onClose={() => setHelp(false)}
@@ -947,6 +910,7 @@ export default function App() {
           setSettings={setSettings}
         />
       )}
+      {tableMenu && <TableMenu onClose={() => setTableMenu(false)} onHelp={openTableHelp} onMenu={goToMenu} />}
     </main>
   );
 }
