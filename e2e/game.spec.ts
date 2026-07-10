@@ -74,17 +74,14 @@ async function expectEnlargedTextNavigation(
     element.style.fontSize = "150%";
   });
 
-  const rules = page.getByRole("button", { name: /rules.*settings/i });
-  const menu = page.getByRole("button", { name: /main menu/i });
-  await expect(rules).toBeVisible();
-  await expect(menu).toBeVisible();
-  const [contentBoxes, rulesBox, menuBox] = await Promise.all([
+  const pause = page.getByRole("button", { name: /pause table/i });
+  await expect(pause).toBeVisible();
+  const [contentBoxes, pauseBox] = await Promise.all([
     Promise.all(content.map((locator) => locator.boundingBox())),
-    rules.boundingBox(),
-    menu.boundingBox(),
+    pause.boundingBox(),
   ]);
-  for (const box of [...contentBoxes, rulesBox, menuBox]) expect(box).not.toBeNull();
-  for (const box of [rulesBox!, menuBox!]) {
+  for (const box of [...contentBoxes, pauseBox]) expect(box).not.toBeNull();
+  for (const box of [pauseBox!]) {
     expect(box.width).toBeGreaterThanOrEqual(44);
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.x).toBeGreaterThanOrEqual(0);
@@ -92,21 +89,22 @@ async function expectEnlargedTextNavigation(
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
   }
-  expect(intersects(rulesBox!, menuBox!)).toBe(false);
   for (const contentBox of contentBoxes) {
-    expect(intersects(rulesBox!, contentBox!)).toBe(false);
-    expect(intersects(menuBox!, contentBox!)).toBe(false);
+    expect(intersects(pauseBox!, contentBox!)).toBe(false);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     viewport.width,
   );
 
+  await pause.click();
+  const tableMenu = page.getByRole("dialog", { name: /table menu/i });
+  const rules = tableMenu.getByRole("button", { name: /rules.*settings/i });
   await rules.click();
   const dialog = page.getByRole("dialog", { name: /rules & accessibility/i });
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(rules).toBeFocused();
+  await expect(pause).toBeFocused();
 }
 test.beforeEach(async ({ page }) => {
   await page.goto("/ante-up-dice/");
@@ -162,11 +160,12 @@ test("briefs, rolls, holds, selects, and scores without timers", async ({
   await die.click();
   await expect(die).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: /^open table ready$/i }).click();
-  await page.getByText("Score details").click();
+  await page.getByRole("button", { name: /score details/i }).click();
   await expect(page.getByText("Category base")).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /score open table/i }).click();
   await expect(page.getByText(/previous score/i)).toBeVisible();
-  await expect(page.getByText(/needed/)).toBeVisible();
+  await expect(page.locator(".progress-counter strong")).toBeVisible();
 });
 
 test("clears a table, uses the shop, and reaches the next briefing", async ({
@@ -196,7 +195,8 @@ test("clears a table, uses the shop, and reaches the next briefing", async ({
 test("persists a held hand through menu and continue", async ({ page }) => {
   await loadState(page, state({ dice: [1, 2, 3, 4, 5], rolls: 2 }));
   await page.getByRole("button", { name: /die 1/i }).click();
-  await page.getByRole("button", { name: /main menu/i }).click();
+  await page.getByRole("button", { name: /pause table/i }).click();
+  await page.getByRole("dialog", { name: /table menu/i }).getByRole("button", { name: /main menu/i }).click();
   await expect(page.getByRole("heading", { name: /ante up dice/i })).toBeFocused();
   await page.getByRole("button", { name: /continue/i }).click();
   await expect(page.getByRole("heading", { name: /shape the hand/i })).toBeFocused();
@@ -227,7 +227,7 @@ test("renders deterministic defeat recap", async ({ page }) => {
       },
     }),
   );
-  await page.getByRole("button", { name: /^score/i }).click();
+  await page.locator('[data-importance="primary"]').click();
   await expect(
     page.getByRole("heading", { name: /table holds/i }),
   ).toBeVisible();
@@ -275,6 +275,51 @@ test("keeps critical play controls within a 390x844 viewport", async ({
   expect((box?.y ?? 9999) + (box?.height ?? 0)).toBeLessThanOrEqual(844);
 });
 
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 844, height: 390 },
+] as const) {
+  test(`unified five-die decision fits ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await loadState(page, state({ dice: [1, 2, 3, 4, 5], rolls: 2 }));
+
+    const stage = page.getByRole("main", { name: "Table stage" });
+    const hand = stage.getByRole("region", { name: "Dice hand" });
+    const offers = stage.getByRole("region", { name: "Score offers" });
+    const primary = stage.locator('[data-importance="primary"]');
+    const secondary = stage.locator('[data-importance="secondary"]');
+    await expect(primary).toHaveCount(1);
+
+    const dice = hand.getByRole("button", { name: /die \d/i });
+    await expect(dice).toHaveCount(5);
+    const critical = [offers, primary, secondary];
+    for (let index = 0; index < 5; index += 1) critical.push(dice.nth(index));
+    for (const locator of critical) {
+      await expect(locator).toBeVisible();
+      const box = await locator.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    }
+    for (let index = 0; index < 5; index += 1) {
+      const box = await dice.nth(index).boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+
+    await dice.first().click();
+    await expect(dice.first()).toHaveAttribute("aria-pressed", "true");
+    await expect(hand.getByRole("button", { name: /die \d/i })).toHaveCount(5);
+    const heldBoxes = await Promise.all(
+      Array.from({ length: 5 }, (_, index) => dice.nth(index).boundingBox()),
+    );
+    const centers = heldBoxes.map((box) => box!.y + box!.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(44);
+  });
+}
+
 const gameplayViewports = [
   { width: 320, height: 568 },
   { width: 390, height: 844 },
@@ -292,9 +337,8 @@ for (const viewport of gameplayViewports) {
       held: [true, false, false, false, false],
     }));
     const regions = [
-      page.getByRole("region", { name: /throw zone/i }),
-      page.getByRole("region", { name: /keep tray/i }),
-      page.getByRole("region", { name: /scoring rail/i }),
+      page.getByRole("region", { name: /dice hand/i }),
+      page.getByRole("region", { name: /score offers/i }),
       page.getByRole("region", { name: /chip pot/i }),
       page.getByRole("region", { name: /thumb action/i }),
     ];
@@ -311,7 +355,7 @@ for (const viewport of gameplayViewports) {
       expect(box!.width).toBeGreaterThanOrEqual(52);
       expect(box!.height).toBeGreaterThanOrEqual(52);
     }
-    for (const plaque of await page.locator(".tray button").all()) {
+    for (const plaque of await page.getByRole("region", { name: /score offers/i }).getByRole("button").all()) {
       const box = await plaque.boundingBox();
       expect(box).not.toBeNull();
       expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -324,20 +368,44 @@ for (const viewport of gameplayViewports) {
   });
 }
 
+test("dense five-of-a-kind score offers remain reachable at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await loadState(page, state({ dice: [6, 6, 6, 6, 6], rolls: 2 }));
+  const offers = page.getByRole("region", { name: /score offers/i });
+  await expect(offers.getByRole("button")).toHaveCount(5);
+  const finalOffer = offers.getByRole("button", { name: /five of a kind/i });
+  await finalOffer.scrollIntoViewIfNeeded();
+  await expect(finalOffer).toBeVisible();
+  const box = await finalOffer.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+  await expect(page.getByRole("button", { name: /score five of a kind/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test("current decision and rail controls survive 200% text", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await loadState(page, state({ dice: [1, 2, 3, 4, 5], rolls: 2 }));
   await page.locator("html").evaluate((element) => { element.style.fontSize = "200%"; });
   await expect(page.getByRole("button", { name: /score grand run/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /rules and settings/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /main menu/i })).toBeVisible();
+  const pause = page.getByRole("button", { name: /pause table/i });
+  await expect(pause).toBeVisible();
+  await pause.click();
+  const tableMenu = page.getByRole("dialog", { name: /table menu/i });
+  await expect(tableMenu.getByRole("button", { name: /rules and settings/i })).toBeVisible();
+  await expect(tableMenu.getByRole("button", { name: /main menu/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
-test("keeps equipped charm effects readable at 390px", async ({ page }) => {
+test("keeps equipped charm effects inspectable at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loadState(page, state({ charms: ["even-keel"] }));
-  await expect(page.getByText("+2 base per even die.")).toBeVisible();
+  const charm = page.getByRole("button", { name: /inspect even keel/i });
+  await charm.click();
+  await expect(page.getByRole("dialog", { name: /even keel/i })).toContainText("+2 base per even die.");
+  await page.keyboard.press("Escape");
+  await expect(charm).toBeFocused();
 });
 
 test.describe("enlarged-text phone navigation", () => {
@@ -363,7 +431,7 @@ test.describe("enlarged-text phone navigation", () => {
           ? [page.locator(".briefing .eyebrow"), page.locator(".briefing h1")]
           : screen === "shop"
             ? [page.locator(".shop .eyebrow"), page.locator(".shop h1")]
-            : [page.locator(".rail .plaque")];
+            : [page.locator(".progress-counter")];
         await expectEnlargedTextNavigation(page, viewport, content);
       });
     }
