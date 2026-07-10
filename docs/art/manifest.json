@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-10",
+  "provenance": "Generated at user request through the authenticated Hermes OpenAI Codex image provider. No API keys or credentials are recorded.",
+  "rightsNote": "AI-generated material; use is subject to the configured provider terms. No third-party stock asset license is asserted.",
+  "policy": {
+    "semanticState": "All scores, labels, dice values, prices, controls, and charm state remain real HTML/CSS and game-engine data.",
+    "failureMode": "Decorative asset failure must not remove, obscure, or alter gameplay."
+  },
+  "assets": [
+    {
+      "id": "desktop-table",
+      "kind": "concept-reference",
+      "file": "docs/art/concepts/desktop-table.webp",
+      "provider": "openai-codex",
+      "model": "gpt-image-2-high",
+      "aspectRatio": "landscape",
+      "dimensions": [
+        1440,
+        810
+      ],
+      "bytes": 227022,
+      "sha256": "86d46643272b6b5147ffb88ae41459dc9a25fca9d27bbcf292af3a86f492f31a",
+      "prompt": "Create a high-fidelity production game UI concept for an original game called Ante Up Dice, desktop 16:9. Transform the visual language of the source into a tactile casino tabletop game, not an app, dashboard, website, or card-grid interface. Camera is a slightly angled top-down view over deep emerald wool felt with worn grain, brass rails, ivory bone dice, clay chips, engraved scoring plaques, and three physical charm tokens clipped along the upper rail. Five large dice are the visual hero in the center throw area. Held dice settle into a shallow brass-edged keep tray. The current scoring choice appears as one illuminated engraved betting plaque near the dice, with alternative hand plaques arranged like physical table markings, never rectangular app cards. Score target and hands/rolls are compact mechanical counters embedded in the left rail. A large satisfying brass ROLL lever/button sits within reach at lower right. Scoring is represented by chips flowing into a pot and concise physical labels, not a spreadsheet. Rules and menu are tiny unobtrusive engraved rail icons. Dramatic warm spotlight, deep shadows, restrained gold glow, premium indie roguelike mood. Strong hierarchy, rich material depth, coherent believable physical layout. No browser chrome, floating panels, generic app UI, ecommerce cards, or imitation of any existing game's exact layout or assets. Use only a few short labels: ANTE UP, ROLL, SCORE, HOLD, PAIR, FULL HOUSE; avoid paragraphs and gibberish text.",
+      "sourceReferences": [
+        "provided tactile-table visual reference",
+        "docs/screenshots/game-mobile.png"
+      ],
+      "intendedUse": "Design-direction reference only. Do not ship generated labels, values, controls, dice state, or game state.",
+      "altPolicy": "Documentation reference; describe in surrounding prose rather than treating generated UI as authoritative."
+    },
+    {
+      "id": "phone-table",
+      "kind": "concept-reference",
+      "file": "docs/art/concepts/phone-table.webp",
+      "provider": "openai-codex",
+      "model": "gpt-image-2-high",
+      "aspectRatio": "portrait",
+      "dimensions": [
+        720,
+        1279
+      ],
+      "bytes": 226938,
+      "sha256": "8a012462f126079f0a015e978b85a67561a18b237d90a0a751bf22ec1c5afe8d",
+      "prompt": "Create a high-fidelity portrait phone gameplay concept for an original tactile casino dice roguelike called Ante Up Dice. It must feel like a game table viewed through a phone, never like a vertically scrolling app or dashboard. Deep emerald felt fills the entire screen edge-to-edge under warm casino lighting. Five oversized ivory dice dominate the middle, with held dice sliding into a brass keep rail directly beneath. The current hand wager is one prominent engraved plaque near the dice; alternative scoring hands are a compact fan or arc of physical table plaques that can expand, not a 3x3 card grid. Top edge contains tiny embedded chip target and hand/roll counters, plus subtle pause and rules icons, all safe-area aware. Bottom thumb zone has a large physical brass ROLL or SCORE control and a chip pot that visibly accumulates winnings. Three charms appear as small physical talismans pinned to the upper felt, not information cards. Use depth, shadows, felt fibers, scuffs, warm rim light, ivory, oxblood, and aged brass. Show a reachable one-handed composition with no horizontal clipping and the core decision visible without scrolling. Minimal labels only: ROLL, SCORE, HOLD, PAIR, 2 ROLLS. No browser chrome, nav bar, app panels, data tables, generic rounded cards, ecommerce design, or exact imitation of existing games.",
+      "sourceReferences": [
+        "provided tactile-table visual reference",
+        "docs/screenshots/game-mobile.png"
+      ],
+      "intendedUse": "Design-direction reference only. Do not ship generated labels, values, controls, dice state, or game state.",
+      "altPolicy": "Documentation reference; describe in surrounding prose rather than treating generated UI as authoritative."
+    },
+    {
+      "id": "phone-shop",
+      "kind": "concept-reference",
+      "file": "docs/art/concepts/phone-shop.webp",
+      "provider": "openai-codex",
+      "model": "gpt-image-2-high",
+      "aspectRatio": "portrait",
+      "dimensions": [
+        720,
+        1279
+      ],
+      "bytes": 183202,
+      "sha256": "64094ef785109b3b65ab01b2a7778568902ed91f50e760b530293e686e80fc16",
+      "prompt": "Create a high-fidelity portrait phone shop concept for Ante Up Dice that feels like a casino dealer presenting contraband charms on a physical felt tray, not an ecommerce app. Deep emerald felt table, aged brass border, warm overhead pool of light. Three distinct charm objects sit on velvet dealer pads: an engraved brass tack, a balanced ivory token, and a coiled red second-wind ribbon, each with a tiny physical price chip and one concise engraved effect strip. Owned charms are clipped along a rail above. Cash is a small stack of clay chips, not a text dashboard. Buy interaction is represented by pulling a charm toward the player's brass inventory rail; sell is a separate dealer slot. Continue to next table is a large physical casino door plaque at the bottom thumb zone. Subtle rules and pause icons in safe area. Rich tactile materials, realistic shadows and wear, premium indie roguelike game UI, strong spatial hierarchy. No product-card grid, white app surfaces, ecommerce buttons, browser chrome, long paragraphs, or fake dashboard. Minimal labels only: CHARMS, $6, BUY, NEXT TABLE. Original design, not a copy of any existing game.",
+      "sourceReferences": [
+        "provided tactile-table visual reference",
+        "docs/screenshots/shop-desktop.png"
+      ],
+      "intendedUse": "Design-direction reference only. Do not ship generated labels, values, controls, dice state, or game state.",
+      "altPolicy": "Documentation reference; describe in surrounding prose rather than treating generated UI as authoritative."
+    },
+    {
+      "id": "felt-surface",
+      "kind": "production-decorative-asset",
+      "file": "public/assets/felt-surface.webp",
+      "provider": "openai-codex",
+      "model": "gpt-image-2-high",
+      "aspectRatio": "square",
+      "dimensions": [
+        768,
+        768
+      ],
+      "bytes": 118488,
+      "sha256": "8d8bb39d94b1408989e888a80dc38b8edec63e3d9e3b19643a2647dadaf5197f",
+      "prompt": "Generate a seamless square texture tile for a premium casino dice game: very dark emerald green wool felt viewed straight overhead, fine dense fibers, subtle irregular wear, faint chalk and handling patina, restrained tonal variation, no directional spotlight, no vignette, no seams, no borders, no objects, no dice, no chips, no symbols, no text, no logos, no UI. It must tile cleanly on all four edges and remain quiet enough for ivory dice and cream text to be legible above it. Photorealistic tactile material scan, game-ready PBR-like diffuse appearance, low visual noise, original texture.",
+      "sourceReferences": [],
+      "intendedUse": "Decorative CSS background only; use once with background-size: cover. Do not tile: visual QA found faint repeat seams. No gameplay meaning.",
+      "fallback": "Existing solid/gradient felt token must leave the game fully playable when the image is absent.",
+      "altPolicy": "CSS decorative background; no alt text."
+    }
+  ]
+}
