@@ -324,13 +324,15 @@ function ScreenNavigation({
   onHelp,
   onMenu,
   className = "",
+  label = "Screen navigation",
 }: {
   onHelp: () => void;
   onMenu: () => void;
   className?: string;
+  label?: string;
 }) {
   return (
-    <nav className={`screen-navigation ${className}`.trim()} aria-label="Screen navigation">
+    <nav className={`screen-navigation ${className}`.trim()} aria-label={label}>
       <button
         className="navigation-action"
         aria-label="Rules and settings"
@@ -765,7 +767,7 @@ export default function App() {
     );
   return (
     <main className="table">
-      <aside className="rail">
+      <aside className="rail" role="region" aria-label="Table rail">
         <div className="plaque">
           <p className="eyebrow">
             Table {run.ante} of {TABLES.length}
@@ -803,13 +805,14 @@ export default function App() {
         </div>
         <ScreenNavigation
           className="rail-navigation"
+          label="Table controls"
           onHelp={() => setHelp(true)}
           onMenu={goToMenu}
         />
       </aside>
-      <section className="board">
-        <header className="top">
-          <div>
+      <section className="board" aria-label="Casino tabletop">
+        <header className="top" role="region" aria-label="Charm rail">
+          <div className="table-title">
             <p className="eyebrow">Ante Up Dice</p>
             <h1>{run.dice.length ? "Shape the hand" : "Make your hand"}</h1>
           </div>
@@ -843,9 +846,9 @@ export default function App() {
             {notice}
           </div>
         )}
-        <div className="dice">
+        <div className="dice throw-zone" role="region" aria-label="Throw zone">
           {run.dice.length ? (
-            run.dice.map((die, i) => (
+            run.dice.map((die, i) => !run.held[i] && (
               <Die
                 key={i}
                 value={die}
@@ -864,7 +867,26 @@ export default function App() {
             <p className="ready">The dice are waiting.</p>
           )}
         </div>
-        <div className="tray" aria-label="Scoring categories">
+        <div className="keep-tray" role="region" aria-label="Keep tray">
+          <span className="keep-label">Held dice</span>
+          <div className="kept-dice">
+            {run.dice.map((die, i) => run.held[i] && (
+              <Die
+                key={i}
+                value={die}
+                index={i}
+                held
+                rolling={rolling}
+                onClick={() => {
+                  act((s) => toggleHold(s, i), 210);
+                  setNotice(`Die ${i + 1} released`);
+                }}
+              />
+            ))}
+            {!run.held.some(Boolean) && <span className="keep-empty">Tap a die to hold it</span>}
+          </div>
+        </div>
+        <div className="tray" role="region" aria-label="Scoring rail">
           {CATEGORY_ORDER.map((id) => {
             const category = CATEGORIES[id],
               ready = valid.includes(id);
@@ -883,12 +905,20 @@ export default function App() {
           })}
         </div>
         <div className="score-panel">
-          {preview ? (
-            <Breakdown score={preview} />
-          ) : (
-            <p>Roll to reveal scoring categories and a complete preview.</p>
-          )}
-          <div className="actions">
+          <div className="pot" role="region" aria-label="Chip pot">
+            <span>Hand pot</span>
+            <strong>{preview?.chips ?? 0}</strong>
+            <small>chips</small>
+          </div>
+          <details className="receipt">
+            <summary>Score details</summary>
+            {preview ? (
+              <Breakdown score={preview} />
+            ) : (
+              <p>Roll to reveal scoring categories and a complete preview.</p>
+            )}
+          </details>
+          <div className="actions" role="region" aria-label="Thumb action">
             {(run.dice.length === 0 || run.rolls > 0) && (
               <button className="primary roll" onClick={roll}>
                 {run.dice.length ? "Reroll loose dice" : "Roll dice"}{" "}

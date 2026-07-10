@@ -162,6 +162,7 @@ test("briefs, rolls, holds, selects, and scores without timers", async ({
   await die.click();
   await expect(die).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: /^open table ready$/i }).click();
+  await page.getByText("Score details").click();
   await expect(page.getByText("Category base")).toBeVisible();
   await page.getByRole("button", { name: /score open table/i }).click();
   await expect(page.getByText(/previous score/i)).toBeVisible();
@@ -272,6 +273,65 @@ test("keeps critical play controls within a 390x844 viewport", async ({
   const box = await score.boundingBox();
   expect(box).not.toBeNull();
   expect((box?.y ?? 9999) + (box?.height ?? 0)).toBeLessThanOrEqual(844);
+});
+
+const gameplayViewports = [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+  { width: 844, height: 390 },
+  { width: 1440, height: 900 },
+] as const;
+
+for (const viewport of gameplayViewports) {
+  test(`table decision fits ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await loadState(page, state({
+      dice: [1, 2, 3, 4, 5],
+      rolls: 2,
+      held: [true, false, false, false, false],
+    }));
+    const regions = [
+      page.getByRole("region", { name: /throw zone/i }),
+      page.getByRole("region", { name: /keep tray/i }),
+      page.getByRole("region", { name: /scoring rail/i }),
+      page.getByRole("region", { name: /chip pot/i }),
+      page.getByRole("region", { name: /thumb action/i }),
+    ];
+    for (const region of regions) await expect(region).toBeVisible();
+    const action = page.getByRole("button", { name: /score grand run/i });
+    const actionBox = await action.boundingBox();
+    expect(actionBox).not.toBeNull();
+    expect(actionBox!.width).toBeGreaterThanOrEqual(44);
+    expect(actionBox!.height).toBeGreaterThanOrEqual(44);
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(viewport.height);
+    for (const die of await page.locator(".die").all()) {
+      const box = await die.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(52);
+      expect(box!.height).toBeGreaterThanOrEqual(52);
+    }
+    for (const plaque of await page.locator(".tray button").all()) {
+      const box = await plaque.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(viewport.height);
+  });
+}
+
+test("current decision and rail controls survive 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await loadState(page, state({ dice: [1, 2, 3, 4, 5], rolls: 2 }));
+  await page.locator("html").evaluate((element) => { element.style.fontSize = "200%"; });
+  await expect(page.getByRole("button", { name: /score grand run/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /rules and settings/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /main menu/i })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
 test("keeps equipped charm effects readable at 390px", async ({ page }) => {

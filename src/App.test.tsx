@@ -82,10 +82,43 @@ it("rolls, holds, exposes breakdown, and scores", () => {
   fireEvent.click(screen.getByRole("button", { name: /roll dice/i }));
   const die = screen.getByRole("button", { name: /die 1/i });
   fireEvent.click(die);
-  expect(die).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /die 1/i })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  fireEvent.click(screen.getByText("Score details"));
   expect(screen.getByText("Category base")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /^score/i }));
   expect(screen.getByText(/previous score/i)).toBeInTheDocument();
+});
+it("exposes gameplay as named physical table regions with rail navigation", () => {
+  localStorage.setItem(
+    SAVE_KEY,
+    JSON.stringify({
+      ...enterTable(newRun(42)),
+      dice: [1, 2, 3, 4, 5],
+      rolls: 2,
+      held: [true, false, false, false, false],
+    }),
+  );
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+  expect(screen.getByRole("region", { name: /table rail/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /charm rail/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /throw zone/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /keep tray/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /scoring rail/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /chip pot/i })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: /thumb action/i })).toBeInTheDocument();
+  expect(screen.getByRole("navigation", { name: /table controls/i })).toContainElement(
+    screen.getByRole("button", { name: /rules and settings/i }),
+  );
+  expect(screen.getByRole("region", { name: /keep tray/i })).toContainElement(
+    screen.getByRole("button", { name: /die 1/i }),
+  );
+  expect(screen.getByRole("region", { name: /throw zone/i })).toContainElement(
+    screen.getByRole("button", { name: /die 2/i }),
+  );
 });
 it("does not render a visible live notice until feedback exists", () => {
   localStorage.setItem(SAVE_KEY, JSON.stringify(enterTable(newRun(42))));
